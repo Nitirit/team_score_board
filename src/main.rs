@@ -1,9 +1,9 @@
 use axum::{
-    Router,
-    extract::{State, WebSocketUpgrade},
     extract::ws::{Message, WebSocket},
+    extract::{State, WebSocketUpgrade},
     response::IntoResponse,
     routing::get,
+    Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -50,6 +50,7 @@ async fn handle_publisher(mut socket: WebSocket, state: Arc<AppState>) {
     while let Some(Ok(msg)) = socket.recv().await {
         match msg {
             Message::Text(text) => {
+                println!("[BROKER] Received from publisher: {text}");
                 let Ok(update) = serde_json::from_str::<ScoreUpdate>(&text) else {
                     tracing::warn!("Publisher sent invalid JSON: {text}");
                     continue;
@@ -67,8 +68,7 @@ async fn handle_publisher(mut socket: WebSocket, state: Arc<AppState>) {
                             continue;
                         }
                     }
-                    serde_json::to_string(&*score)
-                        .expect("Score serialisation is infallible")
+                    serde_json::to_string(&*score).expect("Score serialisation is infallible")
                 };
 
                 info!("Score updated → {score_json}");
@@ -129,6 +129,7 @@ async fn handle_subscriber(mut socket: WebSocket, state: Arc<AppState>) {
     loop {
         match rx.recv().await {
             Ok(score_json) => {
+                println!("[BROKER] Sending to subscriber: {score_json}");
                 if socket.send(Message::Text(score_json)).await.is_err() {
                     info!("Subscriber disconnected");
                     break;
@@ -189,7 +190,5 @@ async fn main() {
     info!("║   Subscriber → ws://{addr}/ws/subscribe ║");
     info!("╚══════════════════════════════════════╝");
     println!("Server Started!!");
-    axum::serve(listener, app)
-        .await
-        .expect("Server error");
+    axum::serve(listener, app).await.expect("Server error");
 }
